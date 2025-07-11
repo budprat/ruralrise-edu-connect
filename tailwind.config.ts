@@ -52,6 +52,26 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					foreground: 'hsl(var(--success-foreground))'
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--warning-foreground))'
+				},
+				learning: {
+					DEFAULT: 'hsl(var(--learning))',
+					foreground: 'hsl(var(--learning-foreground))'
+				},
+				progress: {
+					DEFAULT: 'hsl(var(--progress))',
+					foreground: 'hsl(var(--progress-foreground))'
+				},
+				offline: {
+					DEFAULT: 'hsl(var(--offline))',
+					foreground: 'hsl(var(--offline-foreground))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
