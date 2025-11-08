@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Environment variables - SECURITY CRITICAL
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +31,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+coverage
+*.coverage
+.nyc_output
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# OS files
+Thumbs.db
+.Spotlight-V100
+.Trashes
