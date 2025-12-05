@@ -5,24 +5,96 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  ArrowLeft, BarChart3, TrendingUp, TrendingDown, Users, 
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ArrowLeft, BarChart3, TrendingUp, TrendingDown, Users,
   AlertTriangle, CheckCircle, Clock, DollarSign, Target,
   FileBarChart, Download, RefreshCw, Calendar, Globe,
-  Award, Brain, Zap, Shield
+  Award, Brain, Zap, Shield, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useDashboardMetrics,
+  useClientMetrics,
+  useTrainerPerformance,
+  useRiskAlerts,
+  useQualityMetrics,
+  useComplianceStatus,
+  useScheduledReports,
+  useGenerateReport,
+  useRequestOptimization,
+  useResolveRiskAlert,
+} from "@/hooks/useOperations";
 
 interface OperationsAnalyticsProps {
   onBack: () => void;
 }
 
+// Skeleton components for loading states
+const KPICardSkeleton = () => (
+  <Card className="rural-card">
+    <CardContent className="p-6">
+      <div className="flex items-center space-x-2">
+        <Skeleton className="h-5 w-5 rounded" />
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const TableRowSkeleton = ({ columns }: { columns: number }) => (
+  <TableRow>
+    {Array.from({ length: columns }).map((_, i) => (
+      <TableCell key={i}>
+        <Skeleton className="h-4 w-full" />
+      </TableCell>
+    ))}
+  </TableRow>
+);
+
+const AlertCardSkeleton = () => (
+  <div className="p-4 border border-border rounded-lg bg-destructive/5">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-4">
+        <Skeleton className="w-3 h-3 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-64" />
+          <Skeleton className="h-3 w-40" />
+        </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-8 w-20" />
+      </div>
+    </div>
+  </div>
+);
+
 const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
   const { toast } = useToast();
   const [selectedTimeframe, setSelectedTimeframe] = useState('30d');
 
-  // Mock data for demo
-  const dashboardMetrics = {
+  // API Hooks
+  const { data: dashboardData, isLoading: dashboardLoading } = useDashboardMetrics(selectedTimeframe);
+  const { data: clients, isLoading: clientsLoading } = useClientMetrics();
+  const { data: trainers, isLoading: trainersLoading } = useTrainerPerformance();
+  const { data: risks, isLoading: risksLoading } = useRiskAlerts('open');
+  const { data: quality, isLoading: qualityLoading } = useQualityMetrics();
+  const { data: compliance, isLoading: complianceLoading } = useComplianceStatus();
+  const { data: scheduledReports, isLoading: reportsLoading } = useScheduledReports();
+
+  // Mutations
+  const generateReportMutation = useGenerateReport();
+  const optimizationMutation = useRequestOptimization();
+  const resolveRiskMutation = useResolveRiskAlert();
+
+  // Fallback data when API is unavailable
+  const fallbackDashboardMetrics = {
     totalLearners: 1247,
     activeCohorts: 12,
     completionRate: 89.2,
@@ -37,9 +109,9 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
     }
   };
 
-  const riskAlerts = [
+  const fallbackRiskAlerts = [
     {
-      id: 1,
+      id: "1",
       type: "Quality Risk",
       description: "Batch CS-2024-Q1 showing declining assessment scores",
       severity: "high",
@@ -48,7 +120,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       timeframe: "Immediate"
     },
     {
-      id: 2,
+      id: "2",
       type: "Capacity Risk",
       description: "Trainer Maria Lopez approaching maximum learner capacity",
       severity: "medium",
@@ -57,7 +129,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       timeframe: "Within 48 hours"
     },
     {
-      id: 3,
+      id: "3",
       type: "Client SLA Risk",
       description: "Acme Corp certification timeline at risk",
       severity: "high",
@@ -67,8 +139,9 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
     }
   ];
 
-  const clientMetrics = [
+  const fallbackClientMetrics = [
     {
+      id: "1",
       client: "Acme Corporation",
       activeLearners: 45,
       completionRate: 92,
@@ -78,6 +151,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       nextMilestone: "Q1 Certification Batch"
     },
     {
+      id: "2",
       client: "Global Tech Solutions",
       activeLearners: 32,
       completionRate: 87,
@@ -87,6 +161,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       nextMilestone: "Advanced Skills Module"
     },
     {
+      id: "3",
       client: "Digital Innovations Inc",
       activeLearners: 28,
       completionRate: 94,
@@ -97,8 +172,9 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
     }
   ];
 
-  const trainerPerformance = [
+  const fallbackTrainerPerformance = [
     {
+      id: "1",
       name: "Dr. Sarah Chen",
       learners: 45,
       completionRate: 94,
@@ -108,6 +184,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       efficiency: "High"
     },
     {
+      id: "2",
       name: "Prof. Miguel Rivera",
       learners: 38,
       completionRate: 91,
@@ -117,6 +194,7 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
       efficiency: "High"
     },
     {
+      id: "3",
       name: "Maria Lopez",
       learners: 42,
       completionRate: 87,
@@ -127,62 +205,65 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
     }
   ];
 
-  const handleGenerateReport = async (reportType: string) => {
-    try {
-      // Simulate analytics webhook call
-      const response = await fetch('[INSERT_ANALYTICS_WEBHOOK_URL]', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportType: reportType,
-          timeframe: selectedTimeframe,
-          requestedBy: 'operations_manager',
-          includeAIInsights: true,
-          timestamp: new Date().toISOString()
-        })
-      });
+  // Use API data or fallback
+  const dashboardMetrics = dashboardData || fallbackDashboardMetrics;
+  const riskAlerts = risks || fallbackRiskAlerts;
+  const clientMetrics = clients || fallbackClientMetrics;
+  const trainerPerformance = trainers || fallbackTrainerPerformance;
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+  const handleGenerateReport = (reportType: string) => {
+    generateReportMutation.mutate(
+      {
+        reportType,
+        timeframe: selectedTimeframe,
+        includeAIInsights: true,
+      },
+      {
+        onError: () => {
+          // Fallback toast when API unavailable
+          toast({
+            title: "Report Queued",
+            description: `${reportType} report will be generated when connection is restored.`,
+            variant: "default"
+          });
+        }
       }
-
-      toast({
-        title: "Report Generation Started",
-        description: `${reportType} report is being prepared with AI insights.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Report Queued",
-        description: `${reportType} report will be generated when connection is restored.`,
-        variant: "default"
-      });
-    }
+    );
   };
 
-  const handleOptimizeResources = async () => {
-    try {
-      // Simulate resource optimization API call
-      const response = await fetch('[INSERT_OPTIMIZATION_WEBHOOK_URL]', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          optimizationType: 'resource_allocation',
+  const handleOptimizeResources = () => {
+    optimizationMutation.mutate(
+      {
+        type: 'resource_allocation',
+        parameters: {
           currentCapacity: trainerPerformance,
           demandForecast: 'q2_2024',
-          timestamp: new Date().toISOString()
-        })
-      });
+        }
+      },
+      {
+        onError: () => {
+          // Fallback toast when API unavailable
+          toast({
+            title: "Optimization Queued",
+            description: "Resource optimization analysis will run when connection is restored.",
+          });
+        }
+      }
+    );
+  };
 
-      toast({
-        title: "AI Optimization Started",
-        description: "Analyzing current resource allocation for optimization opportunities.",
-      });
-    } catch (error) {
-      toast({
-        title: "Optimization Queued",
-        description: "Resource optimization analysis will run when connection is restored.",
-      });
-    }
+  const handleResolveRisk = (riskId: string, action: string) => {
+    resolveRiskMutation.mutate(
+      { riskId, resolution: action },
+      {
+        onError: () => {
+          toast({
+            title: "Action Queued",
+            description: "Risk mitigation will be applied when connection is restored.",
+          });
+        }
+      }
+    );
   };
 
   return (
@@ -202,12 +283,30 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm" onClick={() => handleGenerateReport("Executive Summary")}>
-                <Download className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleGenerateReport("Executive Summary")}
+                disabled={generateReportMutation.isPending}
+              >
+                {generateReportMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
                 Export Report
               </Button>
-              <Button variant="outline" size="sm" onClick={handleOptimizeResources}>
-                <Zap className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOptimizeResources}
+                disabled={optimizationMutation.isPending}
+              >
+                {optimizationMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
                 AI Optimize
               </Button>
             </div>
@@ -230,101 +329,114 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
           <TabsContent value="dashboard" className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">{dashboardMetrics.totalLearners.toLocaleString()}</p>
-                      <p className="text-sm text-muted-foreground">Total Learners</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 text-success mr-1" />
-                        <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.learners}%</span>
+              {dashboardLoading ? (
+                <>
+                  <KPICardSkeleton />
+                  <KPICardSkeleton />
+                  <KPICardSkeleton />
+                  <KPICardSkeleton />
+                  <KPICardSkeleton />
+                  <KPICardSkeleton />
+                </>
+              ) : (
+                <>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{dashboardMetrics.totalLearners.toLocaleString()}</p>
+                          <p className="text-sm text-muted-foreground">Total Learners</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingUp className="h-3 w-3 text-success mr-1" />
+                            <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.learners}%</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Target className="h-5 w-5 text-learning" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">{dashboardMetrics.activeCohorts}</p>
-                      <p className="text-sm text-muted-foreground">Active Cohorts</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 text-success mr-1" />
-                        <span className="text-xs text-success">+2 this month</span>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <Target className="h-5 w-5 text-learning" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{dashboardMetrics.activeCohorts}</p>
+                          <p className="text-sm text-muted-foreground">Active Cohorts</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingUp className="h-3 w-3 text-success mr-1" />
+                            <span className="text-xs text-success">+2 this month</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-5 w-5 text-success" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">{dashboardMetrics.completionRate}%</p>
-                      <p className="text-sm text-muted-foreground">Completion Rate</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingDown className="h-3 w-3 text-destructive mr-1" />
-                        <span className="text-xs text-destructive">{dashboardMetrics.trendsComparison.completion}%</span>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-5 w-5 text-success" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{dashboardMetrics.completionRate}%</p>
+                          <p className="text-sm text-muted-foreground">Completion Rate</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingDown className="h-3 w-3 text-destructive mr-1" />
+                            <span className="text-xs text-destructive">{dashboardMetrics.trendsComparison.completion}%</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Award className="h-5 w-5 text-progress" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">{dashboardMetrics.qualityScore}/5</p>
-                      <p className="text-sm text-muted-foreground">Quality Score</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 text-success mr-1" />
-                        <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.quality}%</span>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <Award className="h-5 w-5 text-progress" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{dashboardMetrics.qualityScore}/5</p>
+                          <p className="text-sm text-muted-foreground">Quality Score</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingUp className="h-3 w-3 text-success mr-1" />
+                            <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.quality}%</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Globe className="h-5 w-5 text-accent" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">{dashboardMetrics.clientSatisfaction}%</p>
-                      <p className="text-sm text-muted-foreground">Client Satisfaction</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 text-success mr-1" />
-                        <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.satisfaction}%</span>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <Globe className="h-5 w-5 text-accent" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">{dashboardMetrics.clientSatisfaction}%</p>
+                          <p className="text-sm text-muted-foreground">Client Satisfaction</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingUp className="h-3 w-3 text-success mr-1" />
+                            <span className="text-xs text-success">+{dashboardMetrics.trendsComparison.satisfaction}%</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rural-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="h-5 w-5 text-warning" />
-                    <div>
-                      <p className="text-2xl font-bold text-foreground">${(dashboardMetrics.revenue / 1000).toFixed(0)}K</p>
-                      <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                      <div className="flex items-center mt-1">
-                        <TrendingUp className="h-3 w-3 text-success mr-1" />
-                        <span className="text-xs text-success">+8.5%</span>
+                  <Card className="rural-card">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="h-5 w-5 text-warning" />
+                        <div>
+                          <p className="text-2xl font-bold text-foreground">${(dashboardMetrics.revenue / 1000).toFixed(0)}K</p>
+                          <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                          <div className="flex items-center mt-1">
+                            <TrendingUp className="h-3 w-3 text-success mr-1" />
+                            <span className="text-xs text-success">+8.5%</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
             </div>
 
             {/* Critical Alerts */}
@@ -340,29 +452,45 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {riskAlerts.slice(0, 2).map((alert) => (
-                    <div key={alert.id} className="flex items-center justify-between p-4 border border-border rounded-lg bg-destructive/5">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-3 h-3 rounded-full ${
-                          alert.severity === 'high' ? 'bg-destructive' : 'bg-warning'
-                        }`} />
-                        <div>
-                          <h4 className="font-medium text-foreground">{alert.type}</h4>
-                          <p className="text-sm text-muted-foreground">{alert.description}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Affects {alert.affectedLearners} learners • Action needed: {alert.timeframe}
-                          </p>
+                  {risksLoading ? (
+                    <>
+                      <AlertCardSkeleton />
+                      <AlertCardSkeleton />
+                    </>
+                  ) : (
+                    riskAlerts.slice(0, 2).map((alert) => (
+                      <div key={alert.id} className="flex items-center justify-between p-4 border border-border rounded-lg bg-destructive/5">
+                        <div className="flex items-center space-x-4">
+                          <div className={`w-3 h-3 rounded-full ${
+                            alert.severity === 'high' ? 'bg-destructive' : 'bg-warning'
+                          }`} />
+                          <div>
+                            <h4 className="font-medium text-foreground">{alert.type}</h4>
+                            <p className="text-sm text-muted-foreground">{alert.description}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Affects {alert.affectedLearners} learners • Action needed: {alert.timeframe}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="destructive">{alert.severity} risk</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResolveRisk(alert.id, alert.recommendedAction)}
+                            disabled={resolveRiskMutation.isPending}
+                          >
+                            {resolveRiskMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Shield className="h-4 w-4 mr-2" />
+                            )}
+                            Mitigate
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="destructive">{alert.severity} risk</Badge>
-                        <Button size="sm" variant="outline">
-                          <Shield className="h-4 w-4 mr-2" />
-                          Mitigate
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -376,21 +504,35 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {clientMetrics.slice(0, 3).map((client, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                        <div>
-                          <h4 className="font-medium text-foreground">{client.client}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {client.activeLearners} learners • {client.completionRate}% completion
-                          </p>
+                    {clientsLoading ? (
+                      <>
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-48" />
+                            </div>
+                            <Skeleton className="h-5 w-16" />
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      clientMetrics.slice(0, 3).map((client) => (
+                        <div key={client.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                          <div>
+                            <h4 className="font-medium text-foreground">{client.client}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {client.activeLearners} learners • {client.completionRate}% completion
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={client.onTime ? "default" : "destructive"}>
+                              {client.onTime ? "On Track" : "At Risk"}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={client.onTime ? "default" : "destructive"}>
-                            {client.onTime ? "On Track" : "At Risk"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -450,39 +592,51 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {clientMetrics.map((client, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{client.client}</TableCell>
-                        <TableCell>{client.activeLearners}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <span>{client.completionRate}%</span>
-                            <Progress value={client.completionRate} className="w-16 h-2" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <span>{client.qualityScore}</span>
-                            <Award className="h-4 w-4 text-success" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={client.onTime ? "default" : "destructive"}>
-                            {client.onTime ? "On Track" : "At Risk"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>${client.revenue.toLocaleString()}</TableCell>
-                        <TableCell className="max-w-xs">
-                          <p className="text-sm truncate">{client.nextMilestone}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Button size="sm" variant="outline">
-                            <FileBarChart className="h-4 w-4 mr-2" />
-                            Report
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {clientsLoading ? (
+                      <>
+                        <TableRowSkeleton columns={8} />
+                        <TableRowSkeleton columns={8} />
+                        <TableRowSkeleton columns={8} />
+                      </>
+                    ) : (
+                      clientMetrics.map((client) => (
+                        <TableRow key={client.id}>
+                          <TableCell className="font-medium">{client.client}</TableCell>
+                          <TableCell>{client.activeLearners}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <span>{client.completionRate}%</span>
+                              <Progress value={client.completionRate} className="w-16 h-2" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              <span>{client.qualityScore}</span>
+                              <Award className="h-4 w-4 text-success" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={client.onTime ? "default" : "destructive"}>
+                              {client.onTime ? "On Track" : "At Risk"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>${client.revenue.toLocaleString()}</TableCell>
+                          <TableCell className="max-w-xs">
+                            <p className="text-sm truncate">{client.nextMilestone}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleGenerateReport(`Client: ${client.client}`)}
+                            >
+                              <FileBarChart className="h-4 w-4 mr-2" />
+                              Report
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -513,35 +667,47 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {trainerPerformance.map((trainer, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{trainer.name}</TableCell>
-                        <TableCell>{trainer.learners}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <span>{trainer.completionRate}%</span>
-                            <Progress value={trainer.completionRate} className="w-16 h-2" />
-                          </div>
-                        </TableCell>
-                        <TableCell>{trainer.qualityScore}/5</TableCell>
-                        <TableCell>{trainer.interventions}</TableCell>
-                        <TableCell>{trainer.satisfaction}/5</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            trainer.efficiency === 'High' ? 'default' :
-                            trainer.efficiency === 'Medium' ? 'secondary' : 'destructive'
-                          }>
-                            {trainer.efficiency}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button size="sm" variant="outline">
-                            <BarChart3 className="h-4 w-4 mr-2" />
-                            Analyze
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {trainersLoading ? (
+                      <>
+                        <TableRowSkeleton columns={8} />
+                        <TableRowSkeleton columns={8} />
+                        <TableRowSkeleton columns={8} />
+                      </>
+                    ) : (
+                      trainerPerformance.map((trainer) => (
+                        <TableRow key={trainer.id}>
+                          <TableCell className="font-medium">{trainer.name}</TableCell>
+                          <TableCell>{trainer.learners}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <span>{trainer.completionRate}%</span>
+                              <Progress value={trainer.completionRate} className="w-16 h-2" />
+                            </div>
+                          </TableCell>
+                          <TableCell>{trainer.qualityScore}/5</TableCell>
+                          <TableCell>{trainer.interventions}</TableCell>
+                          <TableCell>{trainer.satisfaction}/5</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              trainer.efficiency === 'High' ? 'default' :
+                              trainer.efficiency === 'Medium' ? 'secondary' : 'destructive'
+                            }>
+                              {trainer.efficiency}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleGenerateReport(`Trainer: ${trainer.name}`)}
+                            >
+                              <BarChart3 className="h-4 w-4 mr-2" />
+                              Analyze
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -623,37 +789,53 @@ const OperationsAnalytics = ({ onBack }: OperationsAnalyticsProps) => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {riskAlerts.map((alert) => (
-                    <div key={alert.id} className="p-4 border border-border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-4 h-4 rounded-full ${
-                            alert.severity === 'high' ? 'bg-destructive' : 'bg-warning'
-                          }`} />
-                          <h4 className="font-medium text-foreground">{alert.type}</h4>
-                          <Badge variant={alert.severity === 'high' ? 'destructive' : 'secondary'}>
-                            {alert.severity} priority
-                          </Badge>
+                  {risksLoading ? (
+                    <>
+                      <AlertCardSkeleton />
+                      <AlertCardSkeleton />
+                      <AlertCardSkeleton />
+                    </>
+                  ) : (
+                    riskAlerts.map((alert) => (
+                      <div key={alert.id} className="p-4 border border-border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-4 h-4 rounded-full ${
+                              alert.severity === 'high' ? 'bg-destructive' : 'bg-warning'
+                            }`} />
+                            <h4 className="font-medium text-foreground">{alert.type}</h4>
+                            <Badge variant={alert.severity === 'high' ? 'destructive' : 'secondary'}>
+                              {alert.severity} priority
+                            </Badge>
+                          </div>
+                          <span className="text-sm text-muted-foreground">{alert.timeframe}</span>
                         </div>
-                        <span className="text-sm text-muted-foreground">{alert.timeframe}</span>
+                        <p className="text-sm text-muted-foreground mb-3">{alert.description}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <span className="text-sm text-muted-foreground">
+                              Affects {alert.affectedLearners} learners
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm text-foreground">{alert.recommendedAction}</p>
+                            <Button
+                              size="sm"
+                              onClick={() => handleResolveRisk(alert.id, alert.recommendedAction)}
+                              disabled={resolveRiskMutation.isPending}
+                            >
+                              {resolveRiskMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Shield className="h-4 w-4 mr-2" />
+                              )}
+                              Implement
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-3">{alert.description}</p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <span className="text-sm text-muted-foreground">
-                            Affects {alert.affectedLearners} learners
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm text-foreground">{alert.recommendedAction}</p>
-                          <Button size="sm">
-                            <Shield className="h-4 w-4 mr-2" />
-                            Implement
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
