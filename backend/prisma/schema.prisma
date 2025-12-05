@@ -1,0 +1,454 @@
+// ================================================================
+// RuralRise OS - Prisma Database Schema
+// ================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------
+// User & Authentication
+// ----------------------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  role          Role
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  profile           Profile?
+  enrollments       Enrollment[]
+  assessments       Assessment[]
+  achievements      UserAchievement[]
+  aiInsights        AIInsight[]
+  sentMessages      Message[]         @relation("SentMessages")
+  receivedMessages  Message[]         @relation("ReceivedMessages")
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+
+  // Trainer-specific
+  cohorts           Cohort[]          @relation("TrainerCohorts")
+  interventions     Intervention[]    @relation("TrainerInterventions")
+
+  @@index([email])
+  @@index([role])
+}
+
+enum Role {
+  LEARNER
+  TRAINER
+  OPERATIONS
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ----------------------------------------------------------------
+// Profile
+// ----------------------------------------------------------------
+
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  avatarUrl       String?
+  currentLevel    String?
+  overallProgress Int      @default(0)
+  weeklyGoal      Int      @default(10)
+  weeklyProgress  Int      @default(0)
+  streak          Int      @default(0)
+  totalPoints     Int      @default(0)
+  lastActiveAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ----------------------------------------------------------------
+// Learning Content
+// ----------------------------------------------------------------
+
+model LearningPath {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  imageUrl    String?
+  modules     Module[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Module {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  order       Int
+  pathId      String
+  path        LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([pathId])
+}
+
+model Lesson {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  duration      Int      // in minutes
+  type          String   // video, interactive, quiz, practical
+  difficulty    Difficulty
+  content       Json     // Lesson content data
+  thumbnailUrl  String?
+  offline       Boolean  @default(false)
+  moduleId      String
+  module        Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  order         Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  enrollments   Enrollment[]
+  assessments   Assessment[]
+
+  @@index([moduleId])
+  @@index([difficulty])
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ----------------------------------------------------------------
+// Enrollment & Progress
+// ----------------------------------------------------------------
+
+model Enrollment {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  progress    Int       @default(0)
+  status      EnrollmentStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@index([status])
+}
+
+enum EnrollmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ----------------------------------------------------------------
+// Cohorts
+// ----------------------------------------------------------------
+
+model Cohort {
+  id          String    @id @default(uuid())
+  name        String
+  trainerId   String
+  trainer     User      @relation("TrainerCohorts", fields: [trainerId], references: [id])
+  startDate   DateTime
+  endDate     DateTime?
+  status      CohortStatus @default(ACTIVE)
+
+  // Relations
+  assessments   Assessment[]
+  learnerCohorts LearnerCohort[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([trainerId])
+  @@index([status])
+}
+
+model LearnerCohort {
+  id        String   @id @default(uuid())
+  learnerId String
+  cohortId  String
+  cohort    Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([learnerId, cohortId])
+  @@index([learnerId])
+  @@index([cohortId])
+}
+
+enum CohortStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+// ----------------------------------------------------------------
+// Assessments
+// ----------------------------------------------------------------
+
+model Assessment {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String?
+  lesson         Lesson?  @relation(fields: [lessonId], references: [id])
+  cohortId       String?
+  cohort         Cohort?  @relation(fields: [cohortId], references: [id])
+  type           String
+  content        Json
+  submission     Json?
+  aiScore        Int?
+  trainerScore   Int?
+  feedback       String?
+  flagged        Boolean  @default(false)
+  status         AssessmentStatus @default(PENDING)
+  submittedAt    DateTime?
+  gradedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([lessonId])
+  @@index([cohortId])
+  @@index([status])
+}
+
+enum AssessmentStatus {
+  PENDING
+  REVIEWED
+  COMPLETED
+}
+
+// ----------------------------------------------------------------
+// Achievements
+// ----------------------------------------------------------------
+
+model Achievement {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  icon        String
+  points      Int
+  criteria    Json     // Criteria to earn
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  earnedAt      DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------
+// AI Insights & Flags
+// ----------------------------------------------------------------
+
+model AIInsight {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      InsightType
+  message   String
+  priority  Priority
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([resolved])
+}
+
+enum InsightType {
+  IMPROVEMENT
+  STRENGTH
+  RECOMMENDATION
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model AIFlag {
+  id             String   @id @default(uuid())
+  learnerId      String
+  cohortId       String?
+  issue          String
+  priority       Priority
+  recommendation String
+  resolved       Boolean  @default(false)
+  resolvedAt     DateTime?
+  resolvedNotes  String?
+  createdAt      DateTime @default(now())
+
+  @@index([learnerId])
+  @@index([cohortId])
+  @@index([resolved])
+}
+
+// ----------------------------------------------------------------
+// Interventions
+// ----------------------------------------------------------------
+
+model Intervention {
+  id               String   @id @default(uuid())
+  learnerId        String
+  trainerId        String
+  trainer          User     @relation("TrainerInterventions", fields: [trainerId], references: [id])
+  interventionType InterventionType
+  issue            String
+  notes            String?
+  status           InterventionStatus @default(PENDING)
+  createdAt        DateTime @default(now())
+  completedAt      DateTime?
+
+  @@index([learnerId])
+  @@index([trainerId])
+  @@index([status])
+}
+
+enum InterventionType {
+  PROACTIVE_OUTREACH
+  PERFORMANCE_REVIEW
+  TECHNICAL_SUPPORT
+}
+
+enum InterventionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ----------------------------------------------------------------
+// Messages & Notifications
+// ----------------------------------------------------------------
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  subject    String
+  body       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([read])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  actionUrl String?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+}
+
+// ----------------------------------------------------------------
+// Risk Alerts (Operations)
+// ----------------------------------------------------------------
+
+model RiskAlert {
+  id                 String      @id @default(uuid())
+  type               String
+  description        String
+  severity           Priority
+  affectedLearners   Int
+  recommendedAction  String
+  timeframe          String
+  status             RiskStatus  @default(OPEN)
+  createdAt          DateTime    @default(now())
+  resolvedAt         DateTime?
+
+  @@index([status])
+  @@index([severity])
+}
+
+enum RiskStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+// ----------------------------------------------------------------
+// Clients (Operations)
+// ----------------------------------------------------------------
+
+model Client {
+  id            String   @id @default(uuid())
+  name          String
+  contactEmail  String
+  activeLearners Int     @default(0)
+  completionRate Float   @default(0)
+  qualityScore  Float    @default(0)
+  revenue       Float    @default(0)
+  startDate     DateTime
+  nextMilestone String?
+  status        ClientStatus @default(ACTIVE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+}
+
+enum ClientStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
